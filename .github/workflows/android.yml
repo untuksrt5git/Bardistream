@@ -49,6 +49,18 @@ jobs:
           ndk-version: r21e
           add-to-path: true
 
+      - name: Select NDK r21e for MobileFFmpeg
+        run: |
+          set -euxo pipefail
+          NDK_PATH="$(dirname "$(dirname "$(command -v armv7a-linux-androideabi16-clang || true)")")"
+          NDK_PATH="/opt/hostedtoolcache/ndk/r21e/x64"
+          test -x "$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi16-clang"
+          echo "ANDROID_NDK=$NDK_PATH" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> "$GITHUB_ENV"
+          echo "$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
+          "$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi16-clang" --version
+
       - name: Build MobileFFmpeg 4.4.LTS for ARMv7 with x264
         run: |
           set -euxo pipefail
