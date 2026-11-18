@@ -15,6 +15,10 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 }
+repositories {
+    flatDir { dirs 'libs' }
+}
+
 dependencies {
-    implementation 'com.arthenica:mobile-ffmpeg-full-gpl:4.4.LTS'
+    implementation(name: 'mobile-ffmpeg', ext: 'aar')
 }
