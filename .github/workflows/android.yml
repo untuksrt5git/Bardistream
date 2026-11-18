@@ -27,12 +27,13 @@ jobs:
 
       - name: Set up Android SDK command-line tools
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
 
       - name: Install Android SDK packages
         run: |
           set -euxo pipefail
           yes | sdkmanager --licenses
-          sdkmanager "platform-tools"
           sdkmanager "platforms;android-28"
           sdkmanager "build-tools;28.0.3"
 
