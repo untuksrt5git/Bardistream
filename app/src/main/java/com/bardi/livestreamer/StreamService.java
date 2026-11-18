@@ -8,19 +8,26 @@ import android.os.PowerManager;
 import android.os.Handler;
 import android.net.wifi.WifiManager;
 import android.util.Log;
-import com.arthenica.mobileffmpeg.Config;
-import com.arthenica.mobileffmpeg.FFmpeg;
-import com.arthenica.mobileffmpeg.ExecuteCallback;
+
+import com.github.hiteshsondhi88.libffmpeg.FFmpeg;
+import com.github.hiteshsondhi88.libffmpeg.LoadBinaryResponseHandler;
+import com.github.hiteshsondhi88.libffmpeg.ExecuteBinaryResponseHandler;
+import com.github.hiteshsondhi88.libffmpeg.exceptions.FFmpegCommandAlreadyRunningException;
+import com.github.hiteshsondhi88.libffmpeg.exceptions.FFmpegNotSupportedException;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class StreamService extends Service {
     public static final String ACTION_START = "com.bardi.livestreamer.START";
     public static final String ACTION_STOP = "com.bardi.livestreamer.STOP";
+
     private final AtomicBoolean stopping = new AtomicBoolean(false);
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final Handler handler = new Handler();
     private PowerManager.WakeLock cpuLock;
     private WifiManager.WifiLock wifiLock;
-    private final Handler handler = new Handler();
+    private FFmpeg ffmpeg;
+    private boolean binaryLoaded = false;
     private int retrySeconds = 3;
 
     @Override public void onCreate() {
@@ -29,6 +36,7 @@ public class StreamService extends Service {
         cpuLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BardiStreamer:CPU");
         WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
         wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "BardiStreamer:WiFi");
+        ffmpeg = FFmpeg.getInstance(getApplicationContext());
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -41,9 +49,37 @@ public class StreamService extends Service {
             stopping.set(false);
             if (!cpuLock.isHeld()) cpuLock.acquire();
             if (!wifiLock.isHeld()) wifiLock.acquire();
-            launch();
+            if (binaryLoaded) {
+                launch();
+            } else {
+                loadBinary();
+            }
         }
         return START_STICKY;
+    }
+
+    private void loadBinary() {
+        try {
+            ffmpeg.loadBinary(new LoadBinaryResponseHandler() {
+                @Override public void onSuccess() {
+                    binaryLoaded = true;
+                    if (!stopping.get()) launch();
+                }
+                @Override public void onFailure() {
+                    Log.e("BardiStreamer", "FFmpeg binary tidak dapat dimuat pada perangkat ini.");
+                    releaseLocks();
+                    stopSelf();
+                }
+            });
+        } catch (FFmpegNotSupportedException e) {
+            Log.e("BardiStreamer", "Arsitektur perangkat tidak didukung", e);
+            releaseLocks();
+            stopSelf();
+        } catch (Exception e) {
+            Log.e("BardiStreamer", "Gagal memuat FFmpeg", e);
+            releaseLocks();
+            stopSelf();
+        }
     }
 
     private void launch() {
@@ -72,26 +108,60 @@ public class StreamService extends Service {
             "-g", "30", "-f", "flv", out
         };
 
-        Config.enableLogCallback(message -> Log.d("BardiFFmpeg", message.getText()));
         running.set(true);
-        FFmpeg.executeAsync(args, new ExecuteCallback() {
-            @Override public void apply(String executionId, int returnCode) {
-                running.set(false);
-                if (stopping.get()) return;
-                Log.w("BardiStreamer", "FFmpeg stopped rc=" + returnCode + "; reconnect in " + retrySeconds + "s");
-                final int delay = retrySeconds;
-                retrySeconds = Math.min(60, retrySeconds * 2);
-                handler.postDelayed(() -> launch(), delay * 1000L);
-            }
-        });
+        final boolean[] succeeded = {false};
+        try {
+            ffmpeg.execute(args, new ExecuteBinaryResponseHandler() {
+                @Override public void onStart() {
+                    Log.i("BardiStreamer", "FFmpeg mulai streaming.");
+                }
+                @Override public void onProgress(String message) {
+                    Log.d("BardiStreamer", message);
+                }
+                @Override public void onSuccess(String message) {
+                    succeeded[0] = true;
+                    Log.i("BardiStreamer", "FFmpeg selesai: " + message);
+                }
+                @Override public void onFailure(String message) {
+                    Log.e("BardiStreamer", "FFmpeg gagal: " + message);
+                    scheduleReconnect();
+                }
+                @Override public void onFinish() {
+                    running.set(false);
+                    if (!succeeded[0] && !stopping.get()) scheduleReconnect();
+                }
+            });
+        } catch (FFmpegCommandAlreadyRunningException e) {
+            running.set(false);
+            Log.e("BardiStreamer", "Perintah FFmpeg lain masih berjalan", e);
+            scheduleReconnect();
+        }
     }
+
+    private void scheduleReconnect() {
+        if (stopping.get()) return;
+        handler.removeCallbacks(reconnectRunnable);
+        int delay = retrySeconds;
+        retrySeconds = Math.min(60, retrySeconds * 2);
+        handler.postDelayed(reconnectRunnable, delay * 1000L);
+    }
+
+    private final Runnable reconnectRunnable = new Runnable() {
+        @Override public void run() {
+            if (!stopping.get() && !running.get()) launch();
+        }
+    };
 
     private void stopPipeline() {
         stopping.set(true);
         handler.removeCallbacksAndMessages(null);
-        FFmpeg.cancel();
+        if (ffmpeg != null) ffmpeg.killRunningProcesses();
         running.set(false);
         retrySeconds = 3;
+        releaseLocks();
+    }
+
+    private void releaseLocks() {
         if (cpuLock != null && cpuLock.isHeld()) cpuLock.release();
         if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
     }
