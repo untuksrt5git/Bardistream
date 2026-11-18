@@ -15,10 +15,7 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 }
-repositories {
-    flatDir { dirs 'libs' }
-}
 
 dependencies {
-    implementation(name: 'mobile-ffmpeg', ext: 'aar')
+    implementation 'com.writingminds:FFmpegAndroid:0.3.2'
 }
