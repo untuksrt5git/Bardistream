@@ -25,13 +25,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool pkg-config curl cmake gcc gperf texinfo yasm nasm bison autogen patch git make unzip
 
-      - name: Set up Android SDK
+      - name: Set up Android SDK command-line tools
         uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-28
-            build-tools;28.0.3
+
+      - name: Install Android SDK packages
+        run: |
+          set -euxo pipefail
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-28"
+          sdkmanager "build-tools;28.0.3"
 
       # The legacy Android Gradle Plugin and MobileFFmpeg tooling use Java 8.
       - name: Set up JDK 8 for legacy build
