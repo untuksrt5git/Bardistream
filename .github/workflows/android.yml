@@ -8,87 +8,34 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 180
+    timeout-minutes: 30
     steps:
       - name: Checkout app
         uses: actions/checkout@v4
 
-      # Current Android command-line tools require Java 17.
       - name: Set up JDK 17 for Android SDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Install MobileFFmpeg build prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool pkg-config curl cmake gcc gperf texinfo yasm nasm bison autogen patch git make unzip
-
-      - name: Set up Android SDK command-line tools
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools'
+          packages: 'platform-tools platforms;android-28 build-tools;28.0.3'
 
-      - name: Install Android SDK packages
-        run: |
-          set -euxo pipefail
-          sdkmanager "platforms;android-28"
-          sdkmanager "build-tools;28.0.3"
-          # Android Gradle Plugin 3.5.4 requests this exact NDK revision for native symbol stripping.
-          sdkmanager "ndk;21.3.6528147"
-
-      # The legacy Android Gradle Plugin and MobileFFmpeg tooling use Java 8.
-      - name: Set up JDK 8 for legacy build
+      # AGP 3.5.4 works with Gradle 5.x and requires Java 8.
+      - name: Set up JDK 8 for legacy Android Gradle Plugin
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '8'
 
-      - name: Set up Android NDK r21e
-        uses: nttld/setup-ndk@v1
+      - name: Build APK with Gradle 5.6.4
+        uses: gradle/gradle-build-action@v2
         with:
-          ndk-version: r21e
-          add-to-path: true
-
-      - name: Select NDK r21e for MobileFFmpeg
-        run: |
-          set -euxo pipefail
-          NDK_PATH="$(dirname "$(dirname "$(command -v armv7a-linux-androideabi16-clang || true)")")"
-          NDK_PATH="/opt/hostedtoolcache/ndk/r21e/x64"
-          test -x "$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi16-clang"
-          echo "ANDROID_NDK=$NDK_PATH" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$NDK_PATH" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> "$GITHUB_ENV"
-          echo "$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
-          "$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi16-clang" --version
-
-      - name: Build MobileFFmpeg 4.4.LTS for ARMv7 with x264
-        run: |
-          set -euxo pipefail
-          git clone --depth 1 --branch v4.4.LTS https://github.com/tanersener/mobile-ffmpeg.git /tmp/mobile-ffmpeg
-          cd /tmp/mobile-ffmpeg
-          # Seed the exact x264 revision from the GitHub mirror. The upstream
-          # VideoLAN archive endpoint returned an HTML error page in CI.
-          mkdir -p src/x264
-          git -C src/x264 init
-          git -C src/x264 remote add origin https://github.com/mirror/x264.git
-          git -C src/x264 fetch --depth 1 origin cde9a93319bea766a92e306d69059c76de970190
-          git -C src/x264 checkout --detach FETCH_HEAD
-          test -f src/x264/configure
-          chmod +x android.sh
-          if ! ./android.sh --lts --enable-gpl --enable-x264 --disable-arm-v7a-neon --disable-arm64-v8a --disable-x86 --disable-x86-64; then
-            echo '===== MobileFFmpeg build.log (last 400 lines) ====='
-            tail -n 400 build.log || true
-            exit 1
-          fi
-          test -s prebuilt/android-aar/mobile-ffmpeg/mobile-ffmpeg.aar
-          mkdir -p "$GITHUB_WORKSPACE/app/libs"
-          cp prebuilt/android-aar/mobile-ffmpeg/mobile-ffmpeg.aar "$GITHUB_WORKSPACE/app/libs/mobile-ffmpeg.aar"
-          ls -lh "$GITHUB_WORKSPACE/app/libs/mobile-ffmpeg.aar"
-
-      - name: Build debug APK
-        run: gradle --no-daemon --stacktrace assembleDebug
+          gradle-version: '5.6.4'
+          arguments: assembleDebug --stacktrace --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
