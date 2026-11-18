@@ -1,0 +1,20 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 28
+    defaultConfig {
+        applicationId 'com.bardi.livestreamer'
+        minSdkVersion 19
+        targetSdkVersion 28
+        versionCode 1
+        versionName '0.1.0'
+        ndk { abiFilters 'armeabi-v7a' }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+dependencies {
+    implementation 'com.arthenica:mobile-ffmpeg-full-gpl:4.4.LTS'
+}
