@@ -13,11 +13,12 @@ jobs:
       - name: Checkout app
         uses: actions/checkout@v4
 
-      - name: Set up JDK 8
+      # Current Android command-line tools require Java 17.
+      - name: Set up JDK 17 for Android SDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '8'
+          java-version: '17'
 
       - name: Install MobileFFmpeg build prerequisites
         run: |
@@ -27,7 +28,17 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools platforms;android-28 build-tools;28.0.3'
+          packages: |
+            platform-tools
+            platforms;android-28
+            build-tools;28.0.3
+
+      # The legacy Android Gradle Plugin and MobileFFmpeg tooling use Java 8.
+      - name: Set up JDK 8 for legacy build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
 
       - name: Set up Android NDK r21e
         uses: nttld/setup-ndk@v1
