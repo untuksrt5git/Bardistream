@@ -22,9 +22,19 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools platforms;android-28 build-tools;28.0.3'
+          packages: 'platform-tools platforms;android-28 build-tools;28.0.3 ndk;21.3.6528147'
 
-      # AGP 3.5.4 works with Gradle 5.x and requires Java 8.
+      - name: Pin Android SDK and NDK for legacy AGP
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SDK="$ANDROID_SDK_ROOT"
+          NDK="$SDK/ndk/21.3.6528147"
+          test -d "$NDK"
+          printf 'sdk.dir=%s\nndk.dir=%s\n' "$SDK" "$NDK" > local.properties
+          cat local.properties
+          test -x "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi-strip"
+
       - name: Set up JDK 8 for legacy Android Gradle Plugin
         uses: actions/setup-java@v4
         with:
