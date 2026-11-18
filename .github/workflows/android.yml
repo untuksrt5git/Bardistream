@@ -68,6 +68,14 @@ jobs:
           set -euxo pipefail
           git clone --depth 1 --branch v4.4.LTS https://github.com/tanersener/mobile-ffmpeg.git /tmp/mobile-ffmpeg
           cd /tmp/mobile-ffmpeg
+          # Seed the exact x264 revision from the GitHub mirror. The upstream
+          # VideoLAN archive endpoint returned an HTML error page in CI.
+          mkdir -p src/x264
+          git -C src/x264 init
+          git -C src/x264 remote add origin https://github.com/mirror/x264.git
+          git -C src/x264 fetch --depth 1 origin cde9a93319bea766a92e306d69059c76de970190
+          git -C src/x264 checkout --detach FETCH_HEAD
+          test -f src/x264/configure
           chmod +x android.sh
           if ! ./android.sh --lts --enable-gpl --enable-x264 --disable-arm-v7a-neon --disable-arm64-v8a --disable-x86 --disable-x86-64; then
             echo '===== MobileFFmpeg build.log (last 400 lines) ====='
