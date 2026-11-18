@@ -55,7 +55,11 @@ jobs:
           git clone --depth 1 --branch v4.4.LTS https://github.com/tanersener/mobile-ffmpeg.git /tmp/mobile-ffmpeg
           cd /tmp/mobile-ffmpeg
           chmod +x android.sh
-          ./android.sh --lts --enable-gpl --enable-x264 --disable-arm-v7a-neon --disable-arm64-v8a --disable-x86 --disable-x86-64
+          if ! ./android.sh --lts --enable-gpl --enable-x264 --disable-arm-v7a-neon --disable-arm64-v8a --disable-x86 --disable-x86-64; then
+            echo '===== MobileFFmpeg build.log (last 400 lines) ====='
+            tail -n 400 build.log || true
+            exit 1
+          fi
           test -s prebuilt/android-aar/mobile-ffmpeg/mobile-ffmpeg.aar
           mkdir -p "$GITHUB_WORKSPACE/app/libs"
           cp prebuilt/android-aar/mobile-ffmpeg/mobile-ffmpeg.aar "$GITHUB_WORKSPACE/app/libs/mobile-ffmpeg.aar"
